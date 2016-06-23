@@ -1,0 +1,134 @@
+\documentclass[a4paper, 10pt]{article}
+
+\usepackage{minted}
+\usepackage{graphicx}
+\usepackage{tabularx}
+\usepackage{syntax}
+\usepackage{fullpage}
+\usepackage{amsmath}
+\usepackage{amsfonts}
+\usepackage{hyperref}
+\usepackage{libertine}
+%\usepackage[T1]{fontenc}
+
+\title{Channel Allocation in SC-FDMA: Research assignment}
+\author{Noric Couderc}
+\date{\today}
+
+\begin{document}
+
+\maketitle
+\tableofcontents
+
+\section{Background}
+
+\subsection*{System model, problem definition and notation}
+In order to test the current implementation of the algorithm, a reference
+implementation is used. The reference implementation uses constraint programming
+to find optimal solutions to the problem at hand. Therefore, the mathematical
+model of a setup for \textbf{Min-Power} is hereby stated.
+
+\subsubsection*{Parameters}
+
+\begin{itemize}
+    \item Set of users: $\mathcal{M} = \{1,\dots,M\}, M \in \mathbb{N}$.
+    \item Set of channels: $\mathcal{N} = \{1,\dots,N\}, N \in \mathbb{N}$.
+    \item Power limit function: $P^u = \mathcal{M} \rightarrow \mathbb{R}^+$.
+    \item Channels peak power limit: $P^s = \mathcal{N} \rightarrow \mathbb{R}^+$.
+    \itam Power function: $P_{uc} : \mathcal{M} \times \mathcal{N} \rightarrow \mathbb{R}$.
+    % \item Utility value of assigning block $b$ to user $i$: $u_{ib} \in \mathbb{R}^+$.
+    \item Demand target of user $i$: $d_i \in \mathbb{R}+$.
+    \item The gain of user $i$ on channel $j$: $g_{ij} \in \mathbb{R}^+$.
+    \item The channel bandwith: $B \in \mathbb{R}^+$.
+    \item The noise power spectral density times the channel bandwidth:
+    $\sigma \in \mathbb{R}^+$.
+    \item The rate of user $i$, on channel $j$, with power $p_{j_i}$:
+    $f(i,j,p_{j_i})
+    \rightarrow \mathbb{R}^+$, where $p_{j_i}$ is the power consumed by user
+    $i$ on channel $j$ (depends of the number of 
+        channels assigned to $i$, defined below). 
+\end{itemize}
+\textbf{Note:}``user $i$" refers to $i \in \mathcal{M}$, ``channel $j$" refers to
+$j \in \mathcal{N}$, ``block $b$" refers to $b \in \mathcal{B}$.
+
+\subsubsection*{Variables}
+\begin{itemize}
+    \item Set of channel blocks: $\mathcal{B}$ where each element $b_i \in
+    \mathcal{B}$ is itself a set of channels allocated to user $i$.
+    \item Each user $i$, allocated $n$ channels will use, for each
+          allocated channel $c$~: $p_{c_i} = \min\{ P^u / n, P^s\}$.
+          
+          Therefore, each user $i$, allocated a block $b_i$ will use:
+          $p_{b_i} = |b_i| \min\{ P^u / |b_i|, P^s\}$.
+\end{itemize}
+
+\subsubsection*{Cost function}
+The problem of \textbf{Min-Power} is to minimize:
+\begin{align*}
+     P &= \sum\limits_{i \in \mathcal{M}} p_{b_i}
+ \end{align*}
+
+\subsubsection*{Constraints}
+\begin{itemize}
+    \item Each user is allocated one block: $|\mathcal{B}| = |\mathcal{M}|$.
+    \item All blocks contain channels: $\forall i \in \mathcal{M}: b_i \subseteq \mathcal{N}$.
+    \item Each pair of user is allocated different channels.
+    \begin{align*}
+    \forall i,j \in \mathcal{M}: i \neq j \leftrightarrow b_i \cap b_j = \emptyset
+    \end{align*}
+    \item The block $b_i$ allocated to user $i$ should satisfy user $i$'s
+    demand:
+    \begin{align*}
+        \forall i, b : \sum\limits_{j \in b}
+        f(i, j, p_{j_i}) \geq d_i \text{where:}\\
+        f(i, j, p_{j_i}) = B \log_2(1 + \frac{p_{j_i}g_{ij}}{\sigma^2})  
+    \end{align*}
+    \item For each user $i$, the power level $p_{b_i}$ is less than the users power limit. 
+    \begin{equation*} 
+        \forall i \in \mathcal{M} : p_{b_i} \leq P^u
+    \end{equation*}
+    \item The power level must stay under the channels peak power limit.
+    \begin{equation*}
+    \forall i \in \mathcal{M} : p_{b_i} \leq P^s
+    \end{equation*}
+\end{itemize}
+
+\subsubsection*{Allocation Schemes}
+The constraints on blocks change depending of the allocation scheme.
+\begin{itemize}
+    \item Localized: All blocks are convex sets (they contain only
+            consecutive channels). 
+    \begin{equation*}
+    \forall b \in \mathcal{B}: 1 + \max(b) - \min(b) = |b|
+    \end{equation*}
+    \item Interleaved: All channels in a block are equally spaced. 
+    That is, for each block $b \in \mathcal{B}$ its elements are spaced by a value $s$: 
+    \begin{equation*}
+        \forall c, c' \in b : c \neq c' \leftrightarrow |c' - c| = s
+    \end{equation*}
+    %For this particular constraint, we construct the set in several
+    %steps. Given a spacing parameter $s$, the desired size $c$, and
+    %the desired first channel $m$, each potential block $b$ is built:
+    %\begin{enumerate}
+    %    \item Build the set $b_1 =
+    %    \{-\lfloor c/2 \rfloor,\cdots,\lfloor c/2 \rfloor\}$.
+    %    \item Multiply all components of $b_1$ by the spacing parameter
+    %    $s$. $\forall i \in b_1 : b_{2}(i) = s i$
+    %    \item $\min b_3 = m$ : $\forall j \in b_2 : b_3(j) = \min(s_2) + m + j$
+    %\end{enumerate}
+\end{itemize}
+
+\section{A variation of the algorithm: details}
+
+\section{Algorithm description}
+
+\section{Performance comparison}
+
+\section{Results, discussion and analysis}
+
+\section{Conclusion}
+
+\bibliographystyle{ieeetr}
+\bibliography{literature}
+
+\end{document}
