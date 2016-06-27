@@ -31,7 +31,6 @@ putBucket j m b = state (\n@(NodeArr nodes) ->
         newgraph= NodeArr   $! (nodes // [(j, newnode)])
     in ((), newgraph))
 
-
 -- GLA ALGORITHM 
 initGLA :: NUsers -> NChannels -> NodeArr
 initGLA (NUsers m) (NChannels n) = snd (runState init start)
@@ -56,8 +55,8 @@ insert l b@(Bucket labels) k =
 
 isBestLabel :: Label -> BucketArr -> Bool
 isBestLabel l (BucketArr buckets) = 
-
-    let hasNoBetterLabel (Bucket b) = (Set.null b) || (l `dominates` (findMax b))
+    let hasNoBetterLabel (Bucket b) = all (\h -> not (h `dominates` l)) b
+    -- (Set.null b) || (l `dominates` (findMax b)) # DOMINATION IS NOT A LINEAR ORDER :(
     --not (any (\h -> h `dominates` l) b)
     in all hasNoBetterLabel buckets
     
@@ -107,9 +106,12 @@ gla !config =
         let userList = Prelude.map (fromEnum) (Set.toList users)
         buckets <- sequence (Prelude.map (getBucket n) userList)
         let (Bucket labels) = mconcat buckets
-        let lBest = Set.findMax (Set.map (SLabel) labels)
-        let tr = Debug.Trace.trace "result" lBest
-        return lBest
+        if Set.null labels then 
+            fail "Labels empty"
+        else do
+            let lBest = Set.findMax (Set.map (SLabel) labels)
+            let tr = Debug.Trace.trace "result" lBest
+            return lBest
 
 runGLA :: Configuration -> (ScoredLabel, NodeArr)
 runGLA c = 

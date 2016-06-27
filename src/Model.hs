@@ -1,4 +1,4 @@
--- {-# language BangPatterns #-}
+-- {-# language BangPatterns, GeneralizedNewtypeDeriving #-}
 
 module Model 
     ( User (..),
