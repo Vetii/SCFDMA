@@ -76,7 +76,7 @@ insertLabels (NBuckets k) (Bucket b') j m =
 allocBlock :: Block -> Bucket -> Bucket -> UtilityF -> Set User -> Bucket
 allocBlock block save prevB@(Bucket prevL) uf allUsers =
     Set.fold (\l l' -> 
-        let newUsers = Set.difference allUsers (users l)
+        let newUsers = Set.difference allUsers (Set.fromList (users l))
         in Set.fold (\w (Bucket labels) -> 
            Bucket (Set.insert (augment uf l w block) labels)) l' newUsers
     ) save prevL
