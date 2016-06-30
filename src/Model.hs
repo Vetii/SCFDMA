@@ -103,6 +103,9 @@ mkParams conf =
         uf   = utility (bandwidth conf) (npsd conf) gainF blkP
     in AlgoConfig m n uf k
 
+-- Conversion from dB to ratio of Watts
+toLinear :: (Floating a, Fractional a) => a -> a
+toLinear x = 10**(x / 10)
 
 -- The power each user uses on each channel
 pow :: UserPowerLimitF -> PeakPowF -> Int -> PowerF

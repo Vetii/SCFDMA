@@ -9,6 +9,7 @@ import Bucket
 import Node
 
 import Data.Set as Set
+import Data.Ord
 import Data.Array.IArray as Array
 import Control.Monad
 import Control.Monad.State
@@ -37,20 +38,20 @@ initGLA (NUsers m) (NChannels n) = snd (runState init start)
      where buckets = BucketArr (listArray (0, m) (repeat mempty))
            start = NodeArr (listArray (0, n) (repeat buckets))
            init = forM_ [0 .. n] (\j -> do
-                    putBucket j 0 (Bucket (Set.singleton mempty)))
+                    putBucket j 0 (Bucket [mempty]))
 
--- insert a label in a bucket
+-- insert a label in a bucket (With additional precautions)
 insert :: Label -> Bucket -> Int -> Bucket
 insert l b@(Bucket labels) k =
-    let sz = Set.size labels
-        res= insertInBucket l b
+    let sz = Bucket.size b
+        res= Bucket.insert l b
     in if sz < k then res
        else
         -- get the label with lowest score
-        let (SLabel low) = Set.findMin (Set.map (SLabel) labels) 
+        let low = Bucket.minimumBy (comparing score) b
         in (if (score l) > (score low) then
-                let withoutLow = Set.delete low labels
-                in insertInBucket l (Bucket withoutLow)
+                let withoutLow = Bucket.delete low b
+                in Bucket.insert l withoutLow
             else b)
 
 isBestLabel :: Label -> BucketArr -> Bool
@@ -61,11 +62,13 @@ isBestLabel l (BucketArr buckets) =
     in all hasNoBetterLabel buckets
     
 insertLabels :: NBuckets -> Bucket -> Int -> Int -> State NodeArr ()
-insertLabels (NBuckets k) (Bucket b') j m = 
-    forM_ (Set.toList b') (\l -> do
+insertLabels (NBuckets k) b' j m = 
+    forM_ (Bucket.toList b') (\l -> do
         -- Get buckets at node j
         buckets <- getBucketArr j
+        -- check if l is the best label among all buckets
         let match = l `isBestLabel` buckets
+        -- if yes, insert it into the current bucket
         if match then do
             bucket <- getBucket j m
             let newB = (GLA.insert l bucket k)
@@ -74,14 +77,13 @@ insertLabels (NBuckets k) (Bucket b') j m =
     )
 
 allocBlock :: Block -> Bucket -> Bucket -> UtilityF -> Set User -> Bucket
-allocBlock block save prevB@(Bucket prevL) uf allUsers =
-    Set.fold (\l l' -> 
+allocBlock block save prevB uf allUsers =
+    Bucket.foldr (\l l' -> 
         let newUsers = Set.difference allUsers (Set.fromList (users l))
-        in Set.fold (\w (Bucket labels) -> 
-           Bucket (Set.insert (augment uf l w block) labels)) l' newUsers
-    ) save prevL
+        in Set.fold (\w b -> Bucket.insert (augment uf l w block) b) l' newUsers
+    ) save prevB
 
-gla :: AlgoConfig -> State NodeArr ScoredLabel
+gla :: AlgoConfig -> State NodeArr Label
 gla !config = 
     let users = allUsers config
         channels = allChannels config 
@@ -105,15 +107,14 @@ gla !config =
             )
         let userList = Prelude.map (fromEnum) (Set.toList users)
         buckets <- sequence (Prelude.map (getBucket n) userList)
-        let (Bucket labels) = mconcat buckets
-        if Set.null labels then 
+        let b = mconcat buckets
+        if Bucket.null b then 
             fail "Labels empty"
         else do
-            let lBest = Set.findMax (Set.map (SLabel) labels)
-            let tr = Debug.Trace.trace "result" lBest
+            let lBest = maximumBy (comparing score) b
             return lBest
 
-runGLA :: Configuration -> (ScoredLabel, NodeArr)
+runGLA :: Configuration -> (Label, NodeArr)
 runGLA c = 
     let m = nusers c
         n = nchannels c
