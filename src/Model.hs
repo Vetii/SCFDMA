@@ -23,41 +23,23 @@ module Model
     ) where
 
 import Data.Set as Set
-import Data.HashMap.Lazy as HashMap (HashMap, foldr, mapWithKey)
 import Data.Array as Array
+import Data.HashMap.Lazy as HashMap
 
-newtype NUsers = NUsers Int deriving (Show)
-
-newtype User = User Int deriving (Ord, Eq, Show, Ix)
-instance Enum User where
-    toEnum = User
-    fromEnum (User u) = u
-
-mkUsers :: NUsers -> Set User
-mkUsers (NUsers n) = Set.fromList (fmap (User) [1..n])
-
-newtype NChannels = NChannels (Int) deriving (Show)
-
-newtype Channel = Channel Int deriving (Ord, Eq, Show, Ix)
-
-instance Enum Channel where
-    toEnum = Channel
-    fromEnum (Channel c) = c
-
-mkChannels :: NChannels -> Set Channel
-mkChannels (NChannels n) = Set.fromList (fmap (Channel) [1..n])
+import Decibel
+import Block
 
 newtype NBuckets = NBuckets (Int) deriving (Show)
 
 newtype Bandwidth = Bandwidth (Float) deriving (Show)
 
-newtype NPSD = NPSD (Float) deriving (Show)
+newtype NPSD = NPSD (Decibel Float) deriving (Show)
 
 newtype UserPowerLimit = UserPowerLimit (Float) deriving (Show)
 
 newtype PeakPowerLimit = PeakPowerLimit (Float) deriving (Show)
 
-newtype GainMatrix = GainMatrix ([[Float]]) deriving (Show)
+newtype GainMatrix = GainMatrix ([[Decibel Float]]) deriving (Show)
 
 data Configuration = Configuration { 
     nusers :: NUsers,
@@ -99,13 +81,9 @@ mkParams conf =
                          rows = Prelude.map trRow mat
                      in listArray (findMin m, findMax m) rows
         gainF= GainF (\u c -> 
-            (gainMatrix Array.! u) Array.! c)
+             fromDecibel ((gainMatrix Array.! u) Array.! c))
         uf   = utility (bandwidth conf) (npsd conf) gainF blkP
     in AlgoConfig m n uf k
-
--- Conversion from dB to ratio of Watts
-toLinear :: (Floating a, Fractional a) => a -> a
-toLinear x = 10**(x / 10)
 
 -- The power each user uses on each channel
 pow :: UserPowerLimitF -> PeakPowF -> Int -> PowerF
@@ -118,48 +96,15 @@ pow (UserPowerLimitF puf) (PeakPowF psf) num =
 blockPow :: UserPowerLimitF -> PeakPowF -> Block -> PowerF
 blockPow plf pkpf (Block b) = pow plf pkpf (Set.size b)
 
-{-- 
--- The total power each user uses on a block
-blockPow :: UserPowerLimitF -> PeakPowF -> User -> Block -> Float
-blockPow pu ps u (Block b) = 
-    let blockSz = Set.size b
-        powF    = pow pu ps blockSz
-        pows    = Set.map (getPower powF u) b
-    in Set.fold (+) 0 pows
-    --}
-
 utility :: Bandwidth -> NPSD -> GainF -> (Block -> PowerF) -> UtilityF
-utility (Bandwidth b) (NPSD s) gainF powF = UtilityF (\u block@(Block channels) ->
+utility (Bandwidth b) (NPSD npsd) gainF powF = UtilityF (\u block@(Block channels) ->
     let power   = getPower (powF block) u
         gain    = getGain gainF u
-        f' c    = b * (logBase 2 (1 + ((power c) * (gain c)) / (s * b)))
+        pRatio  = fromDecibel npsd 
+        f' c    = b * (logBase 2 (1 + ((power c) * (gain c)) / (pRatio * b)))
     in sum (Set.map f' channels))
 
 -- The total utility of a given allocation 
 totalUtility :: UtilityF -> Allocation -> Float
 totalUtility (UtilityF uf) (Allocation a) = let utilities = HashMap.mapWithKey uf a
                                             in HashMap.foldr (+) 0 utilities 
-
-newtype Block = Block (Set Channel) 
-
-newtype ContiguousBlock = ContiguousBlock (Channel, Channel)
-
-fromContiguous :: ContiguousBlock -> Block
-fromContiguous (ContiguousBlock (a, b)) = 
-    let (Channel s) = a
-        (Channel e) = b
-    in Block $ Set.map (Channel) $ Set.fromList [s .. e]
-
-data InterleavedBlock= InterleavedBlock { 
-    start :: Channel,
-    end   :: Channel, 
-    off   :: Int }
-
-fromInterleaved :: InterleavedBlock -> Block
-fromInterleaved ib = 
-    let (Channel s) = start ib
-        (Channel e) = end   ib 
-        o = off   ib 
-    in Block $ Set.map (Channel) $ Set.fromList [s,s + o .. e]
-
-newtype Allocation = Allocation (HashMap User Block)

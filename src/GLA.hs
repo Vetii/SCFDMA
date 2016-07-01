@@ -7,6 +7,7 @@ import Model
 import Label
 import Bucket
 import Node
+import Block
 
 import Data.Set as Set
 import Data.Ord

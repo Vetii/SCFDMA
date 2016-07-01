@@ -32,7 +32,7 @@ null (Bucket []) = True
 null (Bucket _)  = False
 
 insert :: Label -> Bucket -> Bucket
-insert l (Bucket labels) = Bucket (List.insert l labels)
+insert l (Bucket labels) = Bucket (l : labels)
 
 size :: Bucket -> Int
 size (Bucket b) = length b

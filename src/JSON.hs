@@ -1,3 +1,5 @@
+{-# language FlexibleInstances #-}
+
 module JSON (NUsers (..),
              NChannels (..),
              NBuckets (..),
@@ -9,6 +11,8 @@ module JSON (NUsers (..),
              Configuration (..)) where
 
 import Model
+import Decibel
+import Block
 import Control.Monad
 import GHC.Generics
 import Text.JSON
@@ -38,9 +42,15 @@ instance JSON Bandwidth where
     readJSON _ = mzero
     showJSON (Bandwidth b) = showJSON b
 
-instance JSON NPSD where
+instance JSON (Decibel Float) where
     readJSON (JSRational _ i) = 
-        NPSD <$> pure (fromRational i)
+        mkDecibel <$> pure (fromRational i)
+    readJSON _ = mzero
+    showJSON x = showJSON (fromDecibel x)
+
+instance JSON NPSD where
+    readJSON (JSRational b i) = 
+        NPSD <$>  (readJSON (JSRational b i))
     readJSON _ = mzero
     showJSON (NPSD b) = showJSON b
 
